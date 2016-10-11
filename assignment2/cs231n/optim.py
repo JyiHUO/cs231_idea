@@ -65,7 +65,8 @@ def sgd_momentum(w, dw, config=None):
   # TODO: Implement the momentum update formula. Store the updated value in   #
   # the next_w variable. You should also use and update the velocity v.       #
   #############################################################################
-  pass
+  v = config['momentum']*v - config['learning_rate'] * dw
+  next_w = w + v
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -99,7 +100,8 @@ def rmsprop(x, dx, config=None):
   # in the next_x variable. Don't forget to update cache value stored in      #  
   # config['cache'].                                                          #
   #############################################################################
-  pass
+  config['cache'] = config['decay_rate'] * config['cache'] + (1 - config['decay_rate']) * (dx**2)
+  next_x = x - config['learning_rate']*dx / np.sqrt(config['cache'] + config['epsilon'])
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -136,7 +138,23 @@ def adam(x, dx, config=None):
   # the next_x variable. Don't forget to update the m, v, and t variables     #
   # stored in config.                                                         #
   #############################################################################
-  pass
+  t, beta1, beta2, learning_rate, epsilon, m, v = config['t'], config['beta1'], config['beta2'], \
+  config['learning_rate'], config['epsilon'], config['m'], config['v']
+  m = beta1 * m + (1 - beta1) * dx
+  v = beta2 * v + (1 - beta2) * (dx**2)
+  t +=1
+  #bias correction
+  mb = m / (1 - beta1**t)
+  vb = v / (1 - beta2**t)
+
+  next_x = x - learning_rate * mb / (np.sqrt(vb) + epsilon)
+  config['learning_rate'] = learning_rate
+  config['beta1'] = beta1
+  config['beta2'] = beta2
+  config['epsilon'] = epsilon
+  config['m'] = m
+  config['v'] = v
+  config['t'] = t
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
