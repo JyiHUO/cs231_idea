@@ -272,6 +272,7 @@ class FullyConnectedNet(object):
     # scores, fc_cache = affine_forward(a1, W2, b2)
     # self.num_layers = 1 + len(hidden_dims)
     relu_cache = []
+    drop_cache = []
     temp = None
     for i in xrange(self.num_layers):
         W = 'W' + str(i+1)
@@ -279,11 +280,17 @@ class FullyConnectedNet(object):
         W = self.params[W]
         b = self.params[b]
         if i == 0:
-            temp, cache = affine_relu_forward(X, W, b)
+            temp, cache = affine_relu_forward(X, W, b) # first is for X
+            if self.use_dropout:
+                temp, cache_drop = dropout_forward(temp, self.dropout_param)
+                drop_cache.append(cache_drop)
         elif i == self.num_layers- 1:
             scores , cache = affine_forward(temp, W, b)
         else:
-            temp, cache = affine_relu_forward(temp, W, b)
+            temp, cache = affine_relu_forward(temp, W, b) # the other is for inter hidden
+            if self.use_dropout:
+                temp, cache_drop = dropout_forward(temp, self.dropout_param)
+                drop_cache.append(cache_drop)
         relu_cache.append(cache)
     ############################################################################
     #                             END OF YOUR CODE                             #
@@ -321,6 +328,8 @@ class FullyConnectedNet(object):
         if i == self.num_layers:
             dtemp, dw, db = affine_backward(dscores, relu_cache[i-1])
         else:
+            if self.use_dropout:
+                dtemp = dropout_backward(dtemp, drop_cache[i-1])
             dtemp, dw, db = affine_relu_backward(dtemp, relu_cache[i-1])
         grads[W] = dw + self.reg * self.params[W]
         grads[b] = db 
