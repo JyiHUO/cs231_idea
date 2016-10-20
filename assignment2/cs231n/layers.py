@@ -378,7 +378,22 @@ def conv_forward_naive(x, w, b, conv_param):
   # TODO: Implement the convolutional forward pass.                           #
   # Hint: you can use the function np.pad for padding.                        #
   #############################################################################
-  pass
+  N, C, H, W = x.shape
+  F, C, HH, WW = w.shape
+  stride = conv_param['stride']
+  pad = conv_param['pad']
+  H_new = 1 + (H + 2 * pad - HH) / stride
+  W_new = 1 + (W + 2 * pad - WW) / stride
+  padded_x = np.pad(x, ((0,),(0,),(pad,),(pad,)), 'constant', constant_values = 0)
+  out = np.zeros((N, F, H_new, W_new))
+  for n in xrange(N):
+    for f in xrange(F):
+      for hn in xrange(H_new):
+        for wn in xrange(W_new):
+          # print padded_x[n, :, hn*stride:(hn*stride+HH), wn*stride:(wn*stride+WW)].shape
+          # print w[f, :, :, :].shape
+          out[n, f, hn, wn] = np.sum(padded_x[n, :, hn*stride:(hn*stride+HH), wn*stride:(wn*stride+WW)] * w[f, :, :, :]) + b[f] # a[1,:,3,4] != a[1][:][3][4]
+      
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -393,6 +408,10 @@ def conv_backward_naive(dout, cache):
   Inputs:
   - dout: Upstream derivatives.
   - cache: A tuple of (x, w, b, conv_param) as in conv_forward_naive
+  - conv_param: A dictionary with the following keys:
+    - 'stride': The number of pixels between adjacent receptive fields in the
+      horizontal and vertical directions.
+    - 'pad': The number of pixels that will be used to zero-pad the input.
 
   Returns a tuple of:
   - dx: Gradient with respect to x
@@ -403,7 +422,41 @@ def conv_backward_naive(dout, cache):
   #############################################################################
   # TODO: Implement the convolutional backward pass.                          #
   #############################################################################
-  pass
+  N, F, H_new, W_new = dout.shape
+  x, w, b, conv_param = cache
+  stride = conv_param['stride']
+  pad = conv_param['pad']
+  H = w.shape[2]
+  W = w.shape[3]
+  padded_x = np.pad(x, ((0,),(0,),(pad,),(pad,)), 'constant', constant_values = 0)
+  dx = np.zeros(padded_x.shape)
+  dw = np.zeros(w.shape)
+  # be careful about the implement for dx. It is enough for you to use your own knowlwdge to implement it.
+  print 'x shape: ',x.shape
+  print 'stride: ', stride
+  for n in xrange(N):
+    for f in xrange(F):
+      for out_h in xrange(H_new):
+        for out_w in xrange(W_new):
+          # print dx[n, :, stride*out_h:(stride*out_h + H), stride*out_w:(stride*out_w + W)].shape
+          # print w[f,:,:,:].shape
+          dx[n, :, stride*out_h:(stride*out_h + H), stride*out_w:(stride*out_w + W)] += \
+          w[f,:,:,:] * dout[n, f, out_h, out_w]
+          #conbine to each other
+          dw[f,:,:,:] += padded_x[n, :, stride*out_h:(stride*out_h + H), stride*out_w:(stride*out_w + W)]*\
+          dout[n, f, out_h, out_w]
+  dx = dx[:,:,pad:padded_x.shape[2]-pad,pad:padded_x.shape[3]-pad]
+  # it is for dw
+  
+  # dw = np.zeros(w.shape)
+  # for n in xrange(N):
+  #   for f in xrange(F):
+  #     for out_h in xrange(H_new):
+  #       for out_w in xrange(W_new):
+  #         dw[f,:,:,:] += padded_x[n, :, stride*out_h:(stride*out_h + H), stride*out_w:(stride*out_w + W)]*\
+  #         dout[n, f, out_h, out_w]
+  # it is for db
+  db = np.sum(dout, axis = (0,2,3))
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
