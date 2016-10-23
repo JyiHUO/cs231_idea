@@ -476,17 +476,36 @@ def max_pool_forward_naive(x, pool_param):
 
   Returns a tuple of:
   - out: Output data
-  - cache: (x, pool_param)
+  - cache: (x, pool_param, out_index)
   """
   out = None
   #############################################################################
   # TODO: Implement the max pooling forward pass                              #
   #############################################################################
-  pass
+  N, C, H, W = x.shape
+  pool_height = pool_param['pool_height']
+  pool_width = pool_param['pool_width']
+  stride = pool_param['stride']
+  H_new = (H - pool_height) / stride + 1
+  W_new = (W - pool_width) / stride + 1
+  out = np.zeros((N, C, H_new, W_new))
+  out_index = np.zeros(out.shape)
+  for n in xrange(N):
+    for c in xrange(C):
+      for h_new in xrange(H_new):
+        for w_new in xrange(W_new):
+          a = x[n, c, h_new*stride:(h_new*stride + pool_height), w_new*stride:(w_new*stride + pool_width)]
+          index = a.argmax()
+          h_index = index / pool_width
+          w_index = index % pool_height
+          out_index[n, c, h_new, w_new] = index
+          out[n, c, h_new, w_new] = a[h_index, w_index]
+
+
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
-  cache = (x, pool_param)
+  cache = (x, pool_param, out_index)
   return out, cache
 
 
@@ -496,7 +515,7 @@ def max_pool_backward_naive(dout, cache):
 
   Inputs:
   - dout: Upstream derivatives
-  - cache: A tuple of (x, pool_param) as in the forward pass.
+  - cache: A tuple of (x, pool_param, out_index) as in the forward pass.
 
   Returns:
   - dx: Gradient with respect to x
@@ -505,7 +524,20 @@ def max_pool_backward_naive(dout, cache):
   #############################################################################
   # TODO: Implement the max pooling backward pass                             #
   #############################################################################
-  pass
+  x, pool_param, out_index = cache
+  pool_height = pool_param['pool_height']
+  pool_width = pool_param['pool_width']
+  stride = pool_param['stride']
+  dx = np.zeros(x.shape)
+  N, C, H_new, W_new = dout.shape
+  for n in xrange(N):
+    for c in xrange(C):
+      for h_new in xrange(H_new):
+        for w_new in xrange(W_new):
+          index = out_index[n, c, h_new, w_new]
+          h_index = index / pool_width
+          w_index = index % pool_height
+          dx[n, c, h_new*stride + h_index, w_new*stride + w_index] = dout[n, c, h_new, w_new]
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -533,8 +565,10 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
   Returns a tuple of:
   - out: Output data, of shape (N, C, H, W)
   - cache: Values needed for the backward pass
+  - running_mean = momentum * running_mean + (1 - momentum) * miu
+    running_var = momentum * running_var + (1 - momentum) * sigama
+    cache = (momentum, miu, sigama, norm_x, gamma, beta, x, eps, N)
   """
-  out, cache = None, None
 
   #############################################################################
   # TODO: Implement the forward pass for spatial batch normalization.         #
@@ -543,10 +577,61 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
   # version of batch normalization defined above. Your implementation should  #
   # be very short; ours is less than five lines.                              #
   #############################################################################
-  pass
-  #############################################################################
-  #                             END OF YOUR CODE                              #
-  #############################################################################
+  mode = bn_param['mode']
+  eps = bn_param.get('eps', 1e-5)
+  momentum = bn_param.get('momentum', 0.9)
+
+  N, F, H, W = x.shape
+  gamma_new = gamma.reshape(1,F,1,1)
+  beta_new = beta.reshape(1,F,1,1) 
+  running_mean = bn_param.get('running_mean', np.zeros((1,F,1,1), dtype=x.dtype))
+  running_var = bn_param.get('running_var', np.zeros((1,F,1,1), dtype=x.dtype))
+
+  out, cache = None, None
+  if mode == 'train':
+    #############################################################################
+    # TODO: Implement the training-time forward pass for batch normalization.   #
+    # Use minibatch statistics to compute the mean and variance, use these      #
+    # statistics to normalize the incoming data, and scale and shift the        #
+    # normalized data using gamma and beta.                                     #
+    #                                                                           #
+    # You should store the output in the variable out. Any intermediates that   #
+    # you need for the backward pass should be stored in the cache variable.    #
+    #                                                                           #
+    # You should also use your computed sample mean and variance together with  #
+    # the momentum variable to update the running mean and running variance,    #
+    # storing your result in the running_mean and running_var variables.        #
+    #############################################################################
+    miu = np.mean(x, axis = (0, 2, 3)).reshape(1,F,1,1)
+    sigama = np.var(x, axis = (0, 2, 3)).reshape(1,F,1,1)
+    norm_x = (x - miu) / np.sqrt(sigama + eps)
+    # print gamma.shape
+    # print beta.shape
+    out = norm_x * gamma_new + beta_new
+    running_mean = momentum * running_mean + (1 - momentum) * miu
+    running_var = momentum * running_var + (1 - momentum) * sigama
+    cache = (momentum, miu, sigama, norm_x, gamma, beta, x, eps, N)
+    #############################################################################
+    #                             END OF YOUR CODE                              #
+    #############################################################################
+  elif mode == 'test':
+    #############################################################################
+    # TODO: Implement the test-time forward pass for batch normalization. Use   #
+    # the running mean and variance to normalize the incoming data, then scale  #
+    # and shift the normalized data using gamma and beta. Store the result in   #
+    # the out variable.                                                         #
+    #############################################################################
+    norm_x = (x - running_mean) / np.sqrt(running_var + eps)
+    out = norm_x * gamma_new + beta_new
+    #############################################################################
+    #                             END OF YOUR CODE                              #
+    #############################################################################
+  else:
+    raise ValueError('Invalid forward batchnorm mode "%s"' % mode)
+
+  # Store the updated running means back into bn_param
+  bn_param['running_mean'] = running_mean
+  bn_param['running_var'] = running_var
 
   return out, cache
 
@@ -565,15 +650,25 @@ def spatial_batchnorm_backward(dout, cache):
   - dbeta: Gradient with respect to shift parameter, of shape (C,)
   """
   dx, dgamma, dbeta = None, None, None
-
+  N, C, H, W = dout.shape
+  gamma = cache[4].reshape(1,C,1,1)
+  beta = cache[5].reshape(1,C,1,1)
   #############################################################################
   # TODO: Implement the backward pass for spatial batch normalization.        #
-  #                                                                           #
+  #                                         cache[5]                          #
   # HINT: You can implement spatial batch normalization using the vanilla     #
   # version of batch normalization defined above. Your implementation should  #
-  # be very short; ours is less than five lines.                              #
+  # be very short; ours is less than five lines.        
+
+  #cache = (momentum0, miu1, sigama2, norm_x3, gamma4, beta5, x6, eps7, N8)   #
   #############################################################################
-  pass
+  m = N*H*W
+  dgamma = np.sum(dout * cache[3], axis = (0,2,3))
+  dbeta = np.sum(dout, axis = (0,2,3))
+  dnorm_x = dout * gamma
+  dvar = np.sum(dnorm_x * (cache[6] - cache[1]) * (-1 / 2.) * (cache[2] + cache[7])**(-3/2.), axis = (0,2,3)).reshape(1,C,1,1)
+  dmiu = np.sum((-1)*dnorm_x / np.sqrt(cache[2]+ cache[7]), axis = (0,2,3)).reshape(1,C,1,1) + dvar * np.sum((-2) * (cache[6] - cache[1]),axis = (0,2,3)).reshape(1,C,1,1)/m
+  dx = dnorm_x / np.sqrt(cache[2]+ cache[7]) + dvar * 2*(cache[6] - cache[1]) / m + dmiu / m
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
